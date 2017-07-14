@@ -171,6 +171,14 @@ class Chain(object):
             raise TransactionFailed()
         return output
 
+    def tx(self, sender=k0, to=b'\x00' * 20, value=0, data=b'', startgas=STARTGAS, gasprice=GASPRICE):
+        sender_addr = privtoaddr(sender)
+        transaction = Transaction(self.head_state.get_nonce(sender_addr), gasprice, startgas,
+                                  to, value, data).sign(sender)
+        output = self.direct_tx(transaction)
+        self.last_sender = sender
+        return output
+
     def call(self, sender=k0, to=b'\x00' * 20, value=0, data=b'', startgas=STARTGAS, gasprice=GASPRICE):
         snapshot = self.snapshot()
         try:
