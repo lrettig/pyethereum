@@ -108,29 +108,29 @@ def test_head_change_for_longer_pow_chain(db):
 def test_head_change_for_more_commits(db):
     """ This tests that the chain does not change head unless there are more commits on the alternative fork """
     test_string = 'B J0 J1 J2 J3 B B S0 B P0 P1 P2 P3 B1 C0 C1 B1 S1 R0 B B H1 P0 P1 P2 P3 B1 C0 C1 B1 H1 C2 B1 S2 H2'
-    test = TestLangHybrid(test_string, 15, 100, 0.02, 0.002)
-    test.parse()
+    test = TestLangHybrid(15, 100, 0.02, 0.002)
+    test.parse(test_string)
 
 def test_double_prepare_slash(db):
     """ This tests that the chain does not change head unless there are more commits on the alternative fork """
     test_string = 'B J0 B B S0 B P0 B1 C0 B1 R0 B P0 B1 C0 B1 X0 B J1 J2 B B P1 P2 B1 C1 C2 B P1 P2 B1 C1 C2 B1'
-    test = TestLangHybrid(test_string, 15, 100, 0.02, 0.002)
-    test.parse()
+    test = TestLangHybrid(15, 100, 0.02, 0.002)
+    test.parse(test_string)
 
 def test_commit_consistency_slash_with_violating_prepare(db):
     """ This tests that the chain does not change head unless there are more commits on the alternative fork """
     test_string = 'B J0 B B S0 B P0 B1 C0 B1 R0 B B B P0 B1 C0 B1 X0 B1'
-    test = TestLangHybrid(test_string, 15, 100, 0.02, 0.002)
-    test.parse()
+    test = TestLangHybrid(15, 100, 0.02, 0.002)
+    test.parse(test_string)
 
 def test_commit_consistency_slash_with_violating_commit(db):
     """ This tests that the chain does not change head unless there are more commits on the alternative fork """
     test_string = 'B J0 B B S0 B B B P0 B1 R0 B P0 B1 C0 B1 X0 B1'
-    test = TestLangHybrid(test_string, 15, 100, 0.02, 0.002)
-    test.parse()
+    test = TestLangHybrid(15, 100, 0.02, 0.002)
+    test.parse(test_string)
 
 def test_long_range_forks(db):
     """ This tests that the chain is efficient even when forks are very long range """
     test_string = 'B J0 J1 J2 B B S0 B B B B B B B B P0 P1 P2 B1 C0 B1 R0 B B B B B B B B B B P0 P1 P2 B1 C0 C1 C2 B P0 P1 P2 B1 C0 C1 B1 S1 H1'
-    test = TestLangHybrid(test_string, 15, 100, 0.02, 0.002)
-    test.parse()
+    test = TestLangHybrid(15, 100, 0.02, 0.002)
+    test.parse(test_string)

@@ -68,10 +68,7 @@ class Validator(object):
 
 class TestLangHybrid(object):
     # For a custom Casper parser, overload generic parser and construct your chain
-    def __init__(self, test_string, epoch_length, withdrawal_delay, base_interest_factor, base_penalty_factor):
-        if test_string == '':
-            raise Exception("Please pass in a valid test string")
-        self.test_string = test_string
+    def __init__(self, epoch_length, withdrawal_delay, base_interest_factor, base_penalty_factor):
         self.genesis = casper_utils.make_casper_genesis(ALLOC, epoch_length, withdrawal_delay, base_interest_factor, base_penalty_factor)
         self.t = tester.Chain(genesis=self.genesis)
         self.casper = tester.ABIContract(self.t, casper_utils.casper_abi, self.t.chain.env.config['CASPER_ADDRESS'])
@@ -132,8 +129,10 @@ class TestLangHybrid(object):
         assert self.t.chain.head_hash == blockhash
         print('Passed assert H{}'.format(saved_block_id))
 
-    def parse(self):
-        for token in self.test_string.split(' '):
+    def parse(self, test_string):
+        if test_string == '':
+            raise Exception("Please pass in a valid test string")
+        for token in test_string.split(' '):
             letter, number = re.match('([A-Za-z]*)([0-9]*)', token).groups()
             if letter+number != token:
                 raise Exception("Bad token: %s" % token)
