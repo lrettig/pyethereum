@@ -33,12 +33,10 @@ def mk_initializers(config, sender_privkey, starting_nonce=0):
         o.append(tx)
         nonce += 1
     # Casper initialization transaction
-    casper_tx = Transaction(nonce, gasprice, 5000000, b'', 0, casper_bytecode).sign(sender_privkey)
-    # Casper initiate call (separate from initialization to save gas)
-    initiate_args = casper_ct.encode('initiate', [
-        config["EPOCH_LENGTH"], config["WITHDRAWAL_DELAY"], config["OWNER"], sig_hasher_address,
-        purity_checker_address, config["BASE_INTEREST_FACTOR"], config["BASE_PENALTY_FACTOR"]
-    ])
-    casper_initiate_tx = Transaction(nonce + 1, gasprice, 1000000, casper_tx.creates, 0, initiate_args).sign(sender_privkey)
+    params = [config["EPOCH_LENGTH"], config["WITHDRAWAL_DELAY"], config["OWNER"], sig_hasher_address,
+              purity_checker_address, config["BASE_INTEREST_FACTOR"], config["BASE_PENALTY_FACTOR"]]
+    # Casper deploy bytecode
+    casper_deploy_bytecode = casper_bytecode + casper_ct.encode_constructor_arguments(params)
+    casper_deploy_tx = Transaction(nonce, gasprice, 5000000, b'', 0, casper_deploy_bytecode).sign(sender_privkey)
     # Return list of transactions and Casper address
-    return o + [casper_tx, casper_initiate_tx], casper_tx.creates
+    return o + [casper_deploy_tx], casper_deploy_tx.creates

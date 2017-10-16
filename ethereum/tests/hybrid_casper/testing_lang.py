@@ -9,51 +9,43 @@ class Validator(object):
     def __init__(self, withdrawal_addr, key):
         self.withdrawal_addr = withdrawal_addr
         self.key = key
-        self.prepare_map = {}  # {epoch: prepare in that epoch}
-        self.commit_map = {}  # {epoch: commit incompatible with that epoch}
-        self.uncommittable_epochs = {}
-        self.double_prepare_evidence = []
-        self.prepare_commit_consistency_evidence = []
+        self.vote_map = {}  # {epoch: vote in that epoch}
+        self.double_vote_evidence = []
+        self.surrounding_vote_evidence = []
 
     def get_recommended_casper_msg_contents(self, casper, validator_index):
-        return \
-            casper.get_current_epoch(), casper.get_recommended_ancestry_hash(), \
-            casper.get_recommended_source_epoch(), casper.get_recommended_source_ancestry_hash(), \
-            casper.get_validators__prev_commit_epoch(validator_index)
+        return casper.get_recommended_target_hash(), casper.get_current_epoch(), casper.get_recommended_source_epoch()
 
-    def prepare(self, casper):
-        validator_index = self.get_validator_index(casper)
-        _e, _a, _se, _sa, _pce = self.get_recommended_casper_msg_contents(casper, validator_index)
-        prepare_msg = casper_utils.mk_prepare(validator_index, _e, _a, _se, _sa, self.key)
-        if _e in self.prepare_map and self.prepare_map[_e] != prepare_msg:
-            print('Found double prepare for validator:', encode_hex(self.withdrawal_addr))
-            self.double_prepare_evidence.append(self.prepare_map[_e])
-            self.double_prepare_evidence.append(prepare_msg)
-        for i in range(_se+1, _e-1):
-            self.uncommittable_epochs[i] = prepare_msg
-            if i in self.commit_map:
-                print('Found prepare commit consistency in prepare for validator:', encode_hex(self.withdrawal_addr))
-                self.prepare_commit_consistency_evidence.append(prepare_msg)
-                self.prepare_commit_consistency_evidence.append(self.commit_map[i])
-        self.prepare_map[_e] = prepare_msg
-        casper.prepare(prepare_msg)
+    def get_vote_msg(self, vote):
+        return casper_utils.mk_vote(vote['index'], vote['hash'], vote['target'], vote['source'], vote['key'])
 
-    def commit(self, casper):
+    def vote(self, casper):
         validator_index = self.get_validator_index(casper)
-        _e, _a, _se, _sa, _pce = self.get_recommended_casper_msg_contents(casper, validator_index)
-        commit_msg = casper_utils.mk_commit(validator_index, _e, _a, _pce, self.key)
-        self.commit_map[_e] = commit_msg
-        if _e in self.uncommittable_epochs:
-                print('Found prepare commit consistency in commit for validator:', encode_hex(self.withdrawal_addr))
-                self.prepare_commit_consistency_evidence.append(self.uncommittable_epochs[_e])
-                self.prepare_commit_consistency_evidence.append(commit_msg)
-        casper.commit(commit_msg)
+        _h, _t, _s = self.get_recommended_casper_msg_contents(casper, validator_index)
+        vote = {'index': validator_index, 'hash': _h, 'target': _t, 'source': _s, 'key': self.key}
+        vote_msg = self.get_vote_msg(vote)
+        casper.vote(vote_msg)
+        # Double vote slash detection
+        if _t in self.vote_map and self.vote_map[_t] != vote_msg:
+            print('Found double vote for validator:', encode_hex(self.withdrawal_addr))
+            self.double_vote_evidence.extend([self.get_vote_msg(self.vote_map[_t]), vote_msg])
+        # Surrounding slash detection
+        for key, v in self.vote_map.items():
+            if (vote['target'] > v['target'] and vote['source'] < v['source']) or \
+               (v['target'] > vote['target'] and v['source'] < vote['source']):
+                print('Found surrounding vote for validator:', encode_hex(self.withdrawal_addr))
+                conflicting_vote = self.get_vote_msg(v)
+                self.surrounding_vote_evidence.extend([vote_msg, conflicting_vote])
+        # Add vote to vote map
+        self.vote_map[_t] = vote
 
     def slash(self, casper):
-        if len(self.double_prepare_evidence) > 0:
-            casper.double_prepare_slash(self.double_prepare_evidence[0], self.double_prepare_evidence[1])
-        elif len(self.prepare_commit_consistency_evidence) > 0:
-            casper.prepare_commit_inconsistency_slash(self.prepare_commit_consistency_evidence[0], self.prepare_commit_consistency_evidence[1])
+        if len(self.double_vote_evidence) > 0:
+            print('Slashed double vote')
+            casper.slash(self.double_vote_evidence[0], self.double_vote_evidence[1])
+        elif len(self.surrounding_vote_evidence) > 0:
+            print('Slashed surrounding vote')
+            casper.slash(self.surrounding_vote_evidence[0], self.surrounding_vote_evidence[1])
         else:
             raise Exception('No slash evidence found')
         print('Slashed validator:', encode_hex(self.withdrawal_addr))
@@ -78,8 +70,7 @@ class TestLangHybrid(object):
         self.handlers = dict()
         self.handlers['B'] = self.mine_blocks
         self.handlers['J'] = self.join
-        self.handlers['P'] = self.prepare
-        self.handlers['C'] = self.commit
+        self.handlers['V'] = self.vote
         self.handlers['S'] = self.save_block
         self.handlers['R'] = self.revert_to_block
         self.handlers['H'] = self.check_head_equals_block
@@ -89,6 +80,8 @@ class TestLangHybrid(object):
         if number == '':
             print ("No number of blocks specified, Mining 1 epoch to curr HEAD")
             self.mine_epochs(number_of_epochs=1)
+            print('Epoch: {}'.format(self.casper.get_current_epoch()))
+            print('Dynasty: {}'.format(self.casper.get_dynasty_in_epoch(self.casper.get_current_epoch())))
         else:
             print ("Mining " + str(number) + " blocks to curr HEAD")
             self.t.mine(number)
@@ -98,11 +91,13 @@ class TestLangHybrid(object):
         casper_utils.induct_validator(self.t, self.casper, tester.keys[number], 200 * 10**18)
         self.validators[number] = Validator(withdrawal_addr, tester.keys[number])
 
-    def prepare(self, validator_index):
-        self.validators[validator_index].prepare(self.casper)
-
-    def commit(self, validator_index):
-        self.validators[validator_index].commit(self.casper)
+    def vote(self, validator_index):
+        print('New Vote: CurrDynDeposits: {} - Prev Justified: {} - Prev Finalized: {} - Resize Factor: {}'.format(
+            self.casper.get_total_curdyn_deposits(), self.casper.get_recommended_source_epoch(),
+            self.casper.get_last_finalized_epoch(), self.casper.get_latest_resize_factor()))
+        if self.casper.get_total_curdyn_deposits() > 0 and self.casper.get_total_prevdyn_deposits() > 0:
+            print('Vote frac: {}'.format(self.casper.get_main_hash_voted_frac()))
+        self.validators[validator_index].vote(self.casper)
 
     def slash(self, validator_index):
         self.validators[validator_index].slash(self.casper)

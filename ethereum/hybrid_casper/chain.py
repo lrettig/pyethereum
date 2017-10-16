@@ -303,7 +303,7 @@ class Chain(object):
         cp_hash = self.get_prev_checkpoint_hash(block.hash)
         casper = tester.ABIContract(tester.State(temp_state), casper_utils.casper_abi, self.config['CASPER_ADDRESS'])
         try:
-            new_score = casper.get_main_hash_committed_frac()
+            new_score = 0
             log.info('Got new score! {}'.format(new_score))
         except tester.TransactionFailed:
             new_score = 0

@@ -60,17 +60,11 @@ def mk_validation_code(address):
 
 # Helper functions for making a prepare, commit, login and logout message
 
-def mk_prepare(validator_index, epoch, ancestry_hash, source_epoch, source_ancestry_hash, key):
-    sighash = utils.sha3(rlp.encode([validator_index, epoch, ancestry_hash, source_epoch, source_ancestry_hash]))
+def mk_vote(validator_index, target_hash, target_epoch, source_epoch, key):
+    sighash = utils.sha3(rlp.encode([validator_index, target_hash, target_epoch, source_epoch]))
     v, r, s = utils.ecdsa_raw_sign(sighash, key)
     sig = utils.encode_int32(v) + utils.encode_int32(r) + utils.encode_int32(s)
-    return rlp.encode([validator_index, epoch, ancestry_hash, source_epoch, source_ancestry_hash, sig])
-
-def mk_commit(validator_index, epoch, hash, prev_commit_epoch, key):
-    sighash = utils.sha3(rlp.encode([validator_index, epoch, hash, prev_commit_epoch]))
-    v, r, s = utils.ecdsa_raw_sign(sighash, key)
-    sig = utils.encode_int32(v) + utils.encode_int32(r) + utils.encode_int32(s)
-    return rlp.encode([validator_index, epoch, hash, prev_commit_epoch, sig])
+    return rlp.encode([validator_index, target_hash, target_epoch, source_epoch, sig])
 
 def mk_logout(validator_index, epoch, key):
     sighash = utils.sha3(rlp.encode([validator_index, epoch]))
