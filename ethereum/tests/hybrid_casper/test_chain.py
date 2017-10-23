@@ -105,13 +105,25 @@ def test_head_change_for_longer_pow_chain(db):
     R = t.mine(1)
     assert t.chain.head_hash == R.hash
 
-def test_double_vote(db):
+def test_no_change_for_more_work_on_non_finalized_descendant(db):
+    """ This tests that the chain is the chain is """
+    test_string = 'B J0 J1 J2 J3 B B V0 V1 V2 V3 B V0 V1 V2 V3 B S0 B V0 B1 S1 H1 R0 B B B B B H1'
+    test = TestLangHybrid(15, 100, 0.02, 0.002)
+    test.parse(test_string)
+
+def test_change_head_for_more_votes(db):
+    """ This tests that the chain is the chain is """
+    test_string = 'B J0 J1 J2 J3 B B V0 V1 V2 V3 B S0 B V0 V1 B1 S1 R0 B B B2 V0 B1 S2 H1 V1 V2 B2 S3 H3'
+    test = TestLangHybrid(15, 100, 0.02, 0.002)
+    test.parse(test_string)
+
+def test_double_vote_slash(db):
     """ This tests that the chain is the chain is """
     test_string = 'B J0 J1 J2 J3 B B S0 B V0 V1 V2 V3 B1 R0 B V0 B1 X0 B V1 V2 V3 B'
     test = TestLangHybrid(15, 100, 0.02, 0.002)
     test.parse(test_string)
 
-def test_vote_surround(db):
+def test_vote_surround_slash(db):
     """ This tests that the chain is the chain is """
     test_string = 'B J0 J1 J2 J3 B B S0 V0 V1 V2 V3 B V0 V1 V2 V3 B V0 V1 V2 V3 R0 B B B B B B B V0 B1'
     test = TestLangHybrid(15, 100, 0.02, 0.002)
