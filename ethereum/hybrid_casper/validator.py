@@ -18,7 +18,6 @@ class Network(object):
         self.nodes = []
         self.time = 0
 
-    # TODO: Add the concept of time
     def broadcast(self, msg):
         for n in self.nodes:
             n.on_receive(msg)
@@ -36,9 +35,7 @@ class Validator(object):
         self.valcode_tx = None
         self.deposit_tx = None
         self.valcode_addr = valcode_addr
-        self.prepares = dict()
-        self.prev_prepare_epoch = 0
-        self.prev_commit_epoch = 0
+        self.votes = dict()
         self.epoch_length = self.chain.env.config['EPOCH_LENGTH']
         # When the transaction_queue is modified, we must set
         # self._head_candidate_needs_updating to True in order to force the
@@ -71,9 +68,8 @@ class Validator(object):
 
     def get_recommended_casper_msg_contents(self, casper, validator_index):
         return \
-            casper.get_current_epoch(), casper.get_recommended_ancestry_hash(), \
-            casper.get_recommended_source_epoch(), casper.get_recommended_source_ancestry_hash(), \
-            casper.get_validators__prev_commit_epoch(validator_index)
+            casper.get_recommended_target_hash(), casper.get_current_epoch(), \
+            casper.get_recommended_source_epoch()
 
     def get_validator_index(self, state):
         t = tester.State(state.ephemeral_clone())
@@ -108,14 +104,10 @@ class Validator(object):
         post_state = self.chain.mk_poststate_of_blockhash(block.hash)
         post_state.gas_limit = 9999999999999
         # Generate prepare & commit messages and broadcast if possible
-        prepare_msg = self.generate_prepare_message(post_state)
-        if prepare_msg:
-            prepare_tx = self.mk_prepare_tx(prepare_msg)
-            self.broadcast_transaction(prepare_tx)
-        commit_msg = self.generate_commit_message(post_state)
-        if commit_msg:
-            commit_tx = self.mk_commit_tx(commit_msg)
-            self.broadcast_transaction(commit_tx)
+        vote_msg = self.generate_vote_message(post_state)
+        if vote_msg:
+            vote_tx = self.mk_vote_tx(vote_msg)
+            self.broadcast_transaction(vote_tx)
 
     def accept_transaction(self, tx):
         self.transaction_queue.add_transaction(tx)
@@ -131,62 +123,31 @@ class Validator(object):
         log.info('Broadcasting block with hash: %s and txs: %s' % (utils.encode_hex(block.hash), str(block.transactions)))
         self.network.broadcast(block)
 
-    def generate_prepare_message(self, state):
+    def generate_vote_message(self, state):
         epoch = state.block_number // self.epoch_length
-        # NO_DBL_PREPARE: Don't prepare if we have already
-        if epoch in self.prepares:
+        # NO_DBL_VOTE: Don't vote if we have already
+        if epoch in self.votes:
             return None
+        # TODO: Check for NO_SURROUND_VOTE
         # Create a Casper contract which we can use to get related values
         casper = tester.ABIContract(tester.State(state), casper_utils.casper_abi, self.chain.casper_address)
         # Get the ancestry hash and source ancestry hash
         validator_index = self.get_validator_index(state)
-        _e, _a, _se, _sa, _pce = self.get_recommended_casper_msg_contents(casper, validator_index)
-        # PREPARE_COMMIT_CONSISTENCY
-        if _se < self.prev_commit_epoch and self.prev_commit_epoch < epoch:
-            return None
-        prepare_msg = casper_utils.mk_prepare(validator_index, _e, _a, _se, _sa, self.key)
-        try:  # Attempt to submit the prepare, to make sure that it is justified
-            casper.prepare(prepare_msg)
+        target_hash, epoch, source_epoch = self.get_recommended_casper_msg_contents(casper, validator_index)
+        vote_msg = casper_utils.mk_vote(validator_index, target_hash, epoch, source_epoch, self.key)
+        try:  # Attempt to submit the vote, to make sure that it is justified
+            casper.vote(vote_msg)
         except tester.TransactionFailed:
-            log.info('Prepare failed! Validator {} - hash justified {} - validator start {} - valcode addr {}'
+            log.info('Vote failed! Validator {} - validator start {} - valcode addr {}'
                      .format(self.get_validator_index(state),
-                             casper.get_consensus_messages__ancestry_hash_justified(epoch, _a),
-                             casper.get_validators__dynasty_start(validator_index),
+                             casper.get_validators__start_dynasty(validator_index),
                              utils.encode_hex(self.valcode_addr)))
             return None
-        # Save the prepare message we generated
-        self.prepares[epoch] = prepare_msg
-        # Save the highest source epoch we have referenced in our prepare's source epoch
-        if epoch > self.prev_prepare_epoch:
-            self.prev_prepare_epoch = epoch
-        log.info('Prepare submitted: validator %d - epoch %d - prev_commit_epoch %d - hash %s' %
-                 (self.get_validator_index(state), epoch, self.prev_commit_epoch, utils.encode_hex(self.epoch_blockhash(state, epoch))))
-        return prepare_msg
-
-    def generate_commit_message(self, state):
-        epoch = state.block_number // self.epoch_length
-        # PREPARE_COMMIT_CONSISTENCY
-        if self.prev_prepare_epoch < self.prev_commit_epoch and self.prev_commit_epoch < epoch:
-            return None
-        # Create a Casper contract which we can use to get related values
-        casper = tester.ABIContract(tester.State(state), casper_utils.casper_abi, self.chain.casper_address)
-        validator_index = self.get_validator_index(state)
-        _e, _a, _se, _sa, _pce = self.get_recommended_casper_msg_contents(casper, validator_index)
-        # Make the commit message
-        commit_msg = casper_utils.mk_commit(validator_index, _e, _a, _pce, self.key)
-        try:  # Attempt to submit the commit, to make sure that it doesn't doesn't violate DBL_PREPARE & it is justified
-            casper.commit(commit_msg)
-        except tester.TransactionFailed:
-            log.info('Commit failed! Validator {} - blockhash {} - valcode addr {}'
-                     .format(self.get_validator_index(state),
-                             self.epoch_blockhash(state, epoch),
-                             utils.encode_hex(self.valcode_addr)))
-            return None
-        # Save the commit as now our last commit epoch
-        log.info('Commit submitted: validator %d - epoch %d - prev_commit_epoch %d - hash %s' %
-                 (self.get_validator_index(state), epoch, self.prev_commit_epoch, utils.encode_hex(self.epoch_blockhash(state, epoch))))
-        self.prev_commit_epoch = epoch
-        return commit_msg
+        # Save the vote message we generated
+        self.votes[epoch] = vote_msg
+        log.info('Vote submitted: validator %d - epoch %d - source_epoch %d - hash %s' %
+                 (self.get_validator_index(state), epoch, source_epoch, utils.encode_hex(self.epoch_blockhash(state, epoch))))
+        return vote_msg
 
     def mine_and_broadcast_blocks(self, number_of_blocks=1):
         for i in range(number_of_blocks):
@@ -252,14 +213,8 @@ class Validator(object):
         logout_tx = self.mk_transaction(self.chain.casper_address, data=logout_func)
         return logout_tx
 
-    def mk_prepare_tx(self, prepare_msg):
+    def mk_vote_tx(self, vote_msg):
         casper_ct = abi.ContractTranslator(casper_utils.casper_abi)
-        prepare_func = casper_ct.encode('prepare', [prepare_msg])
-        prepare_tx = self.mk_transaction(to=self.chain.casper_address, value=0, data=prepare_func)
-        return prepare_tx
-
-    def mk_commit_tx(self, commit_msg):
-        casper_ct = abi.ContractTranslator(casper_utils.casper_abi)
-        commit_func = casper_ct.encode('commit', [commit_msg])
-        commit_tx = self.mk_transaction(self.chain.casper_address, 0, commit_func)
-        return commit_tx
+        vote_func = casper_ct.encode('vote', [vote_msg])
+        vote_tx = self.mk_transaction(to=self.chain.casper_address, value=0, data=vote_func)
+        return vote_tx
