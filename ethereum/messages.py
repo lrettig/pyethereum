@@ -237,7 +237,7 @@ def apply_casper_vote_transaction(state, tx):
     else:
         log_tx.debug('TX SUCCESS', data=data)
         # Refund casper vote if it's succesful
-        # state.delta_balance(tx.sender, tx.gasprice * tx.startgas)
+        state.delta_balance(tx.sender, tx.gasprice * tx.startgas)
         output = bytearray_to_bytestr(data)
         success = 1
 
