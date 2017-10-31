@@ -77,8 +77,6 @@ def pytest_generate_tests(metafunc):
 
 
 def main():
-    import pdb
-    pdb.set_trace()
     if len(sys.argv) == 1:
         # read fixture from stdin
         fixtures = {'stdin': json.load(sys.stdin)}

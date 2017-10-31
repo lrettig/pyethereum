@@ -7,8 +7,8 @@ from ethereum.hybrid_casper.casper_initiating_transactions import mk_initializer
 from ethereum.hybrid_casper import consensus
 from ethereum.messages import apply_transaction
 from ethereum.tools.tester import a0
-from viper import compiler
-import serpent
+from viper import compiler, optimizer, compile_lll
+from viper.parser.parser_utils import LLLnode
 import rlp
 
 ethereum_path = os.path.dirname(sys.modules['ethereum'].__file__)
@@ -18,12 +18,6 @@ casper_bytecode = compiler.compile(casper_code)
 casper_abi = compiler.mk_full_signature(casper_code)
 casper_translator = abi.ContractTranslator(casper_abi)
 purity_translator = abi.ContractTranslator(purity_checker_abi)
-
-code_template = """
-~calldatacopy(0, 0, 128)
-~call(3000, 1, 0, 0, 128, 0, 32)
-return(~mload(0) == %s)
-"""
 
 # Get a genesis state which is primed for Casper
 def make_casper_genesis(alloc, epoch_length, withdrawal_delay, base_interest_factor, base_penalty_factor):
@@ -55,8 +49,23 @@ def make_casper_genesis(alloc, epoch_length, withdrawal_delay, base_interest_fac
     state.commit()
     return state
 
+
 def mk_validation_code(address):
-    return serpent.compile(code_template % (utils.checksum_encode(address)))
+    validation_code_maker_lll = LLLnode.from_list(['seq',
+                                ['return', [0],
+                                    ['lll',
+                                        ['seq',
+                                            ['calldatacopy', 0, 0, 128],
+                                            ['call', 3000, 1, 0, 0, 128, 0, 32],
+                                            ['mstore', 0, ['eq', ['mload', 0], utils.bytes_to_int(address)]],
+                                            ['return', 0, 32]
+                                        ],
+                                    [0]]
+                                ]
+                            ])
+    validation_code_maker_lll = optimizer.optimize(validation_code_maker_lll)
+    return compile_lll.assembly_to_evm(compile_lll.compile_to_assembly(validation_code_maker_lll))
+
 
 # Helper functions for making a prepare, commit, login and logout message
 
@@ -73,6 +82,7 @@ def mk_logout(validator_index, epoch, key):
     return rlp.encode([validator_index, epoch, sig])
 
 def induct_validator(chain, casper, key, value):
-    valcode_addr = chain.tx(key, "", 0, mk_validation_code(utils.privtoaddr(key)))
+    sender = utils.privtoaddr(key)
+    valcode_addr = chain.tx(key, "", 0, mk_validation_code(sender))
     assert utils.big_endian_to_int(chain.tx(key, purity_checker_address, 0, purity_translator.encode('submit', [valcode_addr]))) == 1
-    casper.deposit(valcode_addr, utils.privtoaddr(key), value=value)
+    casper.deposit(valcode_addr, sender, value=value)
