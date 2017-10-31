@@ -14,7 +14,6 @@ from ethereum.casper_utils import RandaoManager, generate_validation_code, call_
 from ethereum.block_creation import make_head_candidate
 from ethereum.transaction_queue import TransactionQueue
 from ethereum.slogging import LogRecorder, configure_logging, set_level
-import serpent
 from ethereum.config import default_config, Env
 import copy
 import time

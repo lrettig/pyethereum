@@ -185,6 +185,80 @@ def apply_message(state, msg=None, **kwargs):
     return bytearray_to_bytestr(data) if result else None
 
 
+def apply_casper_vote_transaction(state, tx):
+    if tx.sender == state.config['NULL_SENDER'] or not tx.to == state.config['CASPER_ADDRESS']:
+        raise InvalidTransaction("Sender must be not be null sender and to must be the Casper contract address")
+    state.logs = []
+
+    validate_transaction(state, tx)
+
+    intrinsic_gas = tx.intrinsic_gas_used
+    log_tx.debug('TX NEW', txdict=tx.to_dict())
+
+    # start transacting #################
+    if tx.sender != null_address:
+        state.increment_nonce(tx.sender)
+
+    # buy startgas
+    assert state.get_balance(tx.sender) >= tx.startgas * tx.gasprice
+    state.delta_balance(tx.sender, -tx.startgas * tx.gasprice)
+
+    message_data = vm.CallData([safe_ord(x) for x in tx.data], 0, len(tx.data))
+    message = vm.Message(
+        tx.sender,
+        tx.to,
+        tx.value,
+        tx.startgas -
+        intrinsic_gas,
+        message_data,
+        code_address=tx.to)
+
+    # MESSAGE
+    ext = VMExt(state, tx)
+
+    result, gas_remained, data = apply_msg(ext, message)
+
+    assert gas_remained >= 0
+
+    log_tx.debug("TX APPLIED", result=result, gas_remained=gas_remained,
+                 data=data)
+
+    gas_used = tx.startgas - gas_remained
+
+    # Transaction failed
+    if not result:
+        log_tx.debug('TX FAILED', reason='out of gas',
+                     startgas=tx.startgas, gas_remained=gas_remained)
+        state.delta_balance(tx.sender, tx.gasprice * gas_remained)
+        state.delta_balance(state.block_coinbase, tx.gasprice * gas_used)
+        output = b''
+        success = 0
+    # Transaction success
+    else:
+        log_tx.debug('TX SUCCESS', data=data)
+        # Refund casper vote if it's succesful
+        state.delta_balance(tx.sender, tx.gasprice * tx.startgas)
+        output = bytearray_to_bytestr(data)
+        success = 1
+
+    state.gas_used += gas_used
+
+    # Pre-Metropolis: commit state after every tx
+    if not state.is_METROPOLIS() and not SKIP_MEDSTATES:
+        state.commit()
+
+    # Construct a receipt
+    r = mk_receipt(state, success, state.logs)
+    _logs = list(state.logs)
+    state.logs = []
+    state.add_receipt(r)
+    state.set_param('bloom', state.bloom | r.bloom)
+    state.set_param('txindex', state.txindex + 1)
+
+    return success, output
+
+
+
 def apply_transaction(state, tx):
     state.logs = []
     state.suicides = []

@@ -6,7 +6,7 @@ from ethereum.utils import sha3, encode_hex
 import rlp
 from ethereum.slogging import get_logger
 from ethereum.exceptions import InsufficientBalance, BlockGasLimitReached, \
-    InsufficientStartGas, InvalidNonce, UnsignedTransaction
+    InsufficientStartGas, InvalidNonce, UnsignedTransaction, InvalidTransaction
 from ethereum.messages import apply_transaction
 log = get_logger('eth.block')
 
@@ -116,6 +116,17 @@ def validate_header(state, header):
     if 0 <= header.number - \
             state.config["DAO_FORK_BLKNUM"] < 10 and header.extra_data != state.config["DAO_FORK_BLKEXTRA"]:
         raise ValueError("Missing extra data for block near DAO fork")
+    return True
+
+
+# Validate that casper transactions come first
+def validate_casper_vote_transaction_precedence(state, block):
+    reached_normal_transactions = False
+    for tx in block.transactions:
+        if not tx.to == state.env.config['CASPER_ADDRESS'] or not tx.data[0:4] == b'\xe9\xdc\x06\x14':
+            reached_normal_transactions = True
+        elif reached_normal_transactions:
+            raise InvalidTransaction("Please put all Casper transactions first")
     return True
 
 
