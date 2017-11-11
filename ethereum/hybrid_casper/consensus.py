@@ -1,6 +1,7 @@
 from ethereum import utils, transactions
 from ethereum.common import update_block_env_variables
 from ethereum.messages import apply_transaction
+from ethereum.pow import ethpow
 from ethereum.hybrid_casper import casper_utils
 from ethereum.utils import privtoaddr
 
@@ -37,3 +38,9 @@ def initialize(state, block=None):
             config["METROPOLIS_STATEROOT_STORE"]), config["METROPOLIS_GETTER_CODE"])
         state.set_code(utils.normalize_address(
             config["METROPOLIS_BLOCKHASH_STORE"]), config["METROPOLIS_GETTER_CODE"])
+
+# Check that proof of work is valid
+def check_pow(state, header):
+    assert ethpow.check_pow(header.number, header.mining_hash, header.mixhash,
+                            header.nonce, header.difficulty)
+    return True
