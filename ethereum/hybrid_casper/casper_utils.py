@@ -4,6 +4,7 @@ import copy
 
 from ethereum import utils, abi, genesis_helpers, config
 from ethereum.hybrid_casper.casper_initiating_transactions import mk_initializers, purity_checker_address, purity_checker_abi
+from ethereum.block import BLANK_UNCLES_HASH
 from ethereum.hybrid_casper import consensus
 from ethereum.hybrid_casper.config import config
 from ethereum.messages import apply_transaction
@@ -32,7 +33,12 @@ def make_casper_genesis(alloc, epoch_length, withdrawal_delay, base_interest_fac
     init_txs, casper_address = mk_initializers(config.casper_config, config.casper_config['NULL_SENDER'])
     config.casper_config['CASPER_ADDRESS'] = casper_address
     # Create state and apply required state_transitions for initializing Casper
-    state = genesis_helpers.mk_basic_state(alloc, None, env=config.Env(config=config.casper_config))
+    genesis_header = {
+        "number": 0, "gas_limit": 5000000,
+        "gas_used": 0, "timestamp": 1467446877, "difficulty": 2000,
+        "uncles_hash": '0x' + utils.encode_hex(BLANK_UNCLES_HASH)
+    }
+    state = genesis_helpers.mk_basic_state(alloc, header=genesis_header, env=config.Env(config=config.casper_config))
     state.gas_limit = 10**8
     for tx in init_txs:
         state.set_balance(utils.privtoaddr(config.casper_config['NULL_SENDER']), 15**18)
