@@ -109,10 +109,13 @@ def test_no_gas_cost_for_successful_casper_vote(db):
     test = TestLangHybrid(15, 100, 0.02, 0.002)
     test.parse(test_string)
     pre_balance = test.t.head_state.get_balance(sender)
+    pre_block_gas_used = test.t.head_state.gas_used
     test_string = 'V0'
     test.parse(test_string)
     post_balance = test.t.head_state.get_balance(sender)
+    post_block_gas_used = test.t.head_state.gas_used
     assert pre_balance == post_balance
+    assert pre_block_gas_used == post_block_gas_used
 
 
 def test_costs_gas_for_failed_casper_vote(db):
