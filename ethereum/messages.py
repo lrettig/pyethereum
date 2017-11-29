@@ -241,8 +241,6 @@ def apply_casper_vote_transaction(state, tx):
         output = bytearray_to_bytestr(data)
         success = 1
 
-    state.gas_used += gas_used
-
     # Pre-Metropolis: commit state after every tx
     if not state.is_METROPOLIS() and not SKIP_MEDSTATES:
         state.commit()
