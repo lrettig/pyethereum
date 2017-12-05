@@ -4,6 +4,7 @@ import copy
 
 from ethereum import utils, abi, genesis_helpers, config
 from ethereum.hybrid_casper.casper_initiating_transactions import mk_initializers, purity_checker_address, purity_checker_abi
+from ethereum.block import BLANK_UNCLES_HASH
 from ethereum.hybrid_casper import consensus
 from ethereum.hybrid_casper.config import config
 from ethereum.messages import apply_transaction
