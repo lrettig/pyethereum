@@ -1,3 +1,4 @@
+from ethereum.config import Env
 from ethereum.tools import tester
 from ethereum.utils import encode_hex, privtoaddr
 from ethereum.hybrid_casper import casper_utils
@@ -61,7 +62,13 @@ class Validator(object):
 class TestLangHybrid(object):
     # For a custom Casper parser, overload generic parser and construct your chain
     def __init__(self, epoch_length, withdrawal_delay, base_interest_factor, base_penalty_factor):
-        self.genesis = casper_utils.make_casper_genesis(ALLOC, epoch_length, withdrawal_delay, base_interest_factor, base_penalty_factor)
+        self.genesis = casper_utils.make_casper_genesis(
+            env=Env(),
+            alloc=ALLOC,
+            epoch_length=epoch_length,
+            withdrawal_delay=withdrawal_delay,
+            base_interest_factor=base_interest_factor,
+            base_penalty_factor=base_penalty_factor)
         self.t = tester.Chain(genesis=self.genesis)
         self.casper = tester.ABIContract(self.t, casper_utils.casper_abi, self.t.chain.env.config['CASPER_ADDRESS'])
         self.saved_blocks = dict()
