@@ -6,7 +6,7 @@ from ethereum.common import mk_block_from_prevstate, validate_header, \
     set_execution_results, add_transactions, post_finalize, \
     validate_casper_vote_transaction_precedence
 from ethereum.consensus_strategy import get_consensus_strategy
-from ethereum.messages import apply_transaction, apply_casper_vote_transaction
+from ethereum.messages import apply_transaction
 from ethereum.state import State
 from ethereum.utils import sha3, encode_hex
 import rlp
@@ -29,11 +29,7 @@ def apply_block(state, block):
         assert validate_casper_vote_transaction_precedence(state, block)
         # Process transactions
         for tx in block.transactions:
-            # Handles casper vote transactions
-            if tx.to == state.config['CASPER_ADDRESS'] and tx.data[0:4] == b'\xe9\xdc\x06\x14':
-                apply_casper_vote_transaction(state, tx)
-            else:
-                apply_transaction(state, tx)
+            apply_transaction(state, tx)
         # Finalize (incl paying block rewards)
         cs.finalize(state, block)
         # Verify state root, tx list root, receipt root

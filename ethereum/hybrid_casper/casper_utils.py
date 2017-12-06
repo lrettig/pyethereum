@@ -24,7 +24,6 @@ purity_translator = abi.ContractTranslator(purity_checker_abi)
 # Get a genesis state which is primed for Casper
 def make_casper_genesis(env, **kwargs):
     assert isinstance(env, config.Env)
-    # genesis_data = genesis_helpers.mk_genesis_data(env, **kwargs)
 
     # The Casper-specific dynamic config declaration
     config.casper_config['EPOCH_LENGTH'] = kwargs.get('epoch_length', env.config['EPOCH_LENGTH'])

@@ -4,7 +4,7 @@ from ethereum.transactions import Transaction
 from ethereum.consensus_strategy import get_consensus_strategy
 from ethereum.config import config_homestead, config_tangerine, config_spurious, config_metropolis, default_config, Env
 from ethereum.pow.ethpow import Miner
-from ethereum.messages import apply_transaction, apply_message, apply_casper_vote_transaction
+from ethereum.messages import apply_transaction, apply_message
 from ethereum.common import verify_execution_results, mk_block_from_prevstate, set_execution_results
 from ethereum.meta import make_head_candidate
 from ethereum.abi import ContractTranslator
@@ -179,10 +179,7 @@ class Chain(object):
         if self.last_sender is not None and privtoaddr(
                 self.last_sender) != transaction.sender:
             self.last_sender = None
-        if transaction.to == self.head_state.env.config['CASPER_ADDRESS'] and transaction.data[0:4] == b'\xe9\xdc\x06\x14':
-            success, output = apply_casper_vote_transaction(self.head_state, transaction)
-        else:
-            success, output = apply_transaction(self.head_state, transaction)
+        success, output = apply_transaction(self.head_state, transaction)
         self.block.transactions.append(transaction)
         if not success:
             raise TransactionFailed()

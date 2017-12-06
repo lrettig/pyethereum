@@ -185,7 +185,16 @@ def apply_message(state, msg=None, **kwargs):
     return bytearray_to_bytestr(data) if result else None
 
 
-def apply_casper_vote_transaction(state, tx):
+def apply_transaction(state, tx):
+    if tx.to == state.config['CASPER_ADDRESS'] and tx.data[0:4] == b'\xe9\xdc\x06\x14':
+        log_tx.debug("Applying CASPER VOTE transaction: {}".format(tx))
+        return _apply_casper_vote_transaction(state, tx)
+    else:
+        log_tx.debug("Applying transaction (non-CASPER VOTE): {}".format(tx))
+        return _apply_transaction(state, tx)
+
+
+def _apply_casper_vote_transaction(state, tx):
     if tx.sender == state.config['NULL_SENDER'] or not tx.to == state.config['CASPER_ADDRESS']:
         raise InvalidTransaction("Sender must be not be null sender and to must be the Casper contract address")
     state.logs = []
@@ -256,8 +265,7 @@ def apply_casper_vote_transaction(state, tx):
     return success, output
 
 
-
-def apply_transaction(state, tx):
+def _apply_transaction(state, tx):
     state.logs = []
     state.suicides = []
     state.refunds = 0
