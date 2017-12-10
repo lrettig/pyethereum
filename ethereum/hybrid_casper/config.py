@@ -4,7 +4,7 @@ from ethereum.tools.tester import a0
 
 casper_config = dict(
     # The Casper-specific config declaration
-    HOMESTEAD_FORK_BLKNUM=0,
+    METROPOLIS_FORK_BLKNUM=0,
     ANTI_DOS_FORK_BLKNUM=0,
     CLEARING_FORK_BLKNUM=0,
     CONSENSUS_STRATEGY='hybrid_casper',

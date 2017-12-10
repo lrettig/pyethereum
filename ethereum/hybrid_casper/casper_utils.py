@@ -2,7 +2,7 @@ import os
 import sys
 import copy
 
-from ethereum import utils, abi, genesis_helpers, config
+from ethereum import utils, abi, genesis_helpers
 from ethereum.hybrid_casper.casper_initiating_transactions import mk_initializers, purity_checker_address, purity_checker_abi
 from ethereum.block import BLANK_UNCLES_HASH
 from ethereum.hybrid_casper import consensus
@@ -26,9 +26,9 @@ def make_casper_genesis(env, **kwargs):
     assert isinstance(env, config.Env)
 
     # The Casper-specific dynamic config declaration
+    config.casper_config['OWNER'] = a0
     config.casper_config['EPOCH_LENGTH'] = kwargs.get('epoch_length', env.config['EPOCH_LENGTH'])
     config.casper_config['WITHDRAWAL_DELAY'] = kwargs.get('withdrawal_delay', env.config['WITHDRAWAL_DELAY'])
-    config.casper_config['OWNER'] = a0
     config.casper_config['BASE_INTEREST_FACTOR'] = kwargs.get('base_interest_factor', env.config['BASE_INTEREST_FACTOR'])
     config.casper_config['BASE_PENALTY_FACTOR'] = kwargs.get('base_penalty_factor', env.config['BASE_PENALTY_FACTOR'])
     alloc = kwargs.get('alloc', env.config['GENESIS_INITIAL_ALLOC'])
